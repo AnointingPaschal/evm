@@ -16,10 +16,16 @@ import Admin from './pages/Admin';
 
 function AppInner() {
   const { activeWallet, isLocked } = useWallet();
+  
   if (!activeWallet) return <Onboarding />;
   if (isLocked) return <LockScreen />;
+  
   return (
-    <div className="min-h-screen bg-app flex flex-col max-w-lg mx-auto relative">
+    {/* 
+      FIXED: 'w-full' forces edge-to-edge on mobile. 
+      'sm:max-w-[420px]' keeps it looking like an app ONLY on desktop screens.
+    */}
+    <div className="w-full min-h-screen bg-app flex flex-col sm:max-w-[420px] sm:mx-auto sm:border-x sm:border-slate-200 dark:sm:border-white/10 sm:shadow-2xl relative overflow-x-hidden">
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<Home />} />
@@ -42,7 +48,15 @@ export default function App() {
     <ThemeProvider>
       <WalletProvider>
         <Toaster position="top-center" toastOptions={{
-          style: { background:'#1E293B', color:'#F8FAFC', borderRadius:'16px', fontSize:'13px', fontFamily:'Inter,sans-serif', border:'1px solid rgba(255,255,255,0.1)' },
+          style: { 
+            background:'#1E293B', 
+            color:'#F8FAFC', 
+            borderRadius:'12px', /* Tighter curve */
+            fontSize:'12px',     /* Smaller text */
+            padding:'8px 12px',  /* Smaller padding */
+            fontFamily:'Inter,sans-serif', 
+            border:'1px solid rgba(255,255,255,0.1)' 
+          },
           success: { iconTheme:{ primary:'#3B82F6', secondary:'#fff' } },
           error: { iconTheme:{ primary:'#EF4444', secondary:'#fff' } },
         }} />
