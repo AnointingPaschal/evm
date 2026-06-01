@@ -204,4 +204,8 @@ export const WalletProvider = ({ children }) => {
     <Ctx.Provider value={{ wallets,activeWallet,tokens,vaults,settings,sessionPwd,isLocked,balances,prices,loadingBal,network,
       createNew,importWallet,switchWallet,removeWallet,getKeys,addToken,removeToken,
       createVault,unlockVault, // <--- These now execute real blockchain transactions!
-      updateSettings,setNetwork,lockWallet,unlockWallet,refresh
+      updateSettings,setNetwork,lockWallet,unlockWallet,refreshBalances,refreshPrices }}>
+      {children}
+    </Ctx.Provider>
+  );
+};
