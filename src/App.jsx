@@ -21,10 +21,6 @@ function AppInner() {
   if (isLocked) return <LockScreen />;
   
   return (
-    {/* 
-      FIXED: 'w-full' forces edge-to-edge on mobile. 
-      'sm:max-w-[420px]' keeps it looking like an app ONLY on desktop screens.
-    */}
     <div className="w-full min-h-screen bg-app flex flex-col sm:max-w-[420px] sm:mx-auto sm:border-x sm:border-slate-200 dark:sm:border-white/10 sm:shadow-2xl relative overflow-x-hidden">
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
@@ -51,9 +47,9 @@ export default function App() {
           style: { 
             background:'#1E293B', 
             color:'#F8FAFC', 
-            borderRadius:'12px', /* Tighter curve */
-            fontSize:'12px',     /* Smaller text */
-            padding:'8px 12px',  /* Smaller padding */
+            borderRadius:'12px',
+            fontSize:'12px',
+            padding:'8px 12px',
             fontFamily:'Inter,sans-serif', 
             border:'1px solid rgba(255,255,255,0.1)' 
           },
