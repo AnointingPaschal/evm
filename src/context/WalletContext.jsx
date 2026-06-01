@@ -1,6 +1,15 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { createWallet, importFromMnemonic, importFromPrivateKey, encryptData, decryptData, getNativeBalance, getTokenBalance, getTokenInfo, isValidAddress } from '../utils/wallet';
-import { saveWallet, getWallets, getActiveWallet, setActiveId, deleteWallet, saveTokens, getTokens, saveVaults, getVaults, getSettings, saveSettings } from '../utils/storage';
+import { ethers } from 'ethers';
+import { 
+  createWallet, importFromMnemonic, importFromPrivateKey, encryptData, decryptData, 
+  getNativeBalance, getTokenBalance, getTokenInfo, isValidAddress,
+  // NEW ON-CHAIN VAULT IMPORTS:
+  getUserVaultsOnChain, lockTokensOnChain, withdrawFromVaultOnChain, breakVaultOnChain 
+} from '../utils/wallet';
+import { 
+  saveWallet, getWallets, getActiveWallet, setActiveId, deleteWallet, 
+  saveTokens, getTokens, getSettings, saveSettings 
+} from '../utils/storage';
 import { getCCTokenLogo, getCGTokenInfo, getCCPrice } from '../utils/api';
 import toast from 'react-hot-toast';
 
@@ -11,7 +20,7 @@ export const WalletProvider = ({ children }) => {
   const [wallets, setWallets] = useState([]);
   const [activeWallet, setActive] = useState(null);
   const [tokens, setTokens] = useState([]);
-  const [vaults, setVaults] = useState([]);
+  const [vaults, setVaults] = useState([]); // Now populated strictly from the blockchain
   const [settings, setSettings] = useState(getSettings());
   const [sessionPwd, setSessionPwd] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
@@ -24,7 +33,11 @@ export const WalletProvider = ({ children }) => {
   useEffect(() => {
     const ws = getWallets(); setWallets(ws);
     const aw = getActiveWallet();
-    if (aw) { setActive(aw); setTokens(getTokens(aw.id)); setVaults(getVaults(aw.id)); }
+    if (aw) { 
+      setActive(aw); 
+      setTokens(getTokens(aw.id)); 
+      // Removed local storage getVaults. Handled async now.
+    }
   }, []);
 
   const refreshPrices = useCallback(async () => {
@@ -49,12 +62,36 @@ export const WalletProvider = ({ children }) => {
     if (!activeWallet) return;
     setLoadingBal(true);
     try {
+      // 1. Fetch Standard Balances
       const bals = { native: await getNativeBalance(activeWallet.address, network) };
       for (const t of tokens.filter(tk => tk.network === network)) {
         bals[t.address.toLowerCase()] = await getTokenBalance(t.address, activeWallet.address, network);
       }
       setBalances(bals);
-    } catch {}
+
+      // 2. Fetch ON-CHAIN Vaults dynamically
+      const onChainVaults = await getUserVaultsOnChain(activeWallet.address, network);
+      
+      const formattedVaults = onChainVaults.map(v => {
+        // Find matching token to get correct decimals and symbols
+        const t = tokens.find(tk => tk.address.toLowerCase() === v.tokenAddress.toLowerCase());
+        const decimals = t ? t.decimals : 18;
+        const symbol = t ? t.symbol : 'Token';
+
+        return {
+          id: v.id, // Contract Array Index (Needed for withdraws)
+          tokenAddress: v.tokenAddress,
+          tokenSymbol: symbol,
+          amount: ethers.formatUnits(v.amount, decimals), // Convert from Wei
+          unlockAt: new Date(v.unlockTimestamp).toISOString(),
+          status: v.status
+        };
+      });
+      setVaults(formattedVaults);
+
+    } catch (err) {
+      console.error("Balance/Vault Sync Error:", err);
+    }
     setLoadingBal(false);
   }, [activeWallet, tokens, network]);
 
@@ -62,7 +99,7 @@ export const WalletProvider = ({ children }) => {
     if (activeWallet && !isLocked) {
       refreshBalances(); refreshPrices();
       if (priceRef.current) clearInterval(priceRef.current);
-      priceRef.current = setInterval(refreshPrices, 30000);
+      priceRef.current = setInterval(refreshPrices, 30000); // Poll every 30s
     }
     return () => { if (priceRef.current) clearInterval(priceRef.current); };
   }, [activeWallet, network, isLocked]);
@@ -70,7 +107,7 @@ export const WalletProvider = ({ children }) => {
   const _activate = (w) => {
     setActive(w); setActiveId(w.id);
     const t = getTokens(w.id); setTokens(t);
-    setVaults(getVaults(w.id)); setBalances({}); setPrices({});
+    setVaults([]); setBalances({}); setPrices({});
   };
 
   const createNew = async (name, password) => {
@@ -108,19 +145,55 @@ export const WalletProvider = ({ children }) => {
 
   const removeToken = (addr) => { const u=tokens.filter(t=>t.address.toLowerCase()!==addr.toLowerCase()); setTokens(u); saveTokens(activeWallet.id,u); };
 
-  const createVault = ({ tokenAddress, tokenSymbol, amount, lockMonths, note }) => {
-    if(lockMonths<2) throw new Error('Minimum 2 months');
-    if(amount<=0) throw new Error('Invalid amount');
-    const unlockAt = new Date(); unlockAt.setMonth(unlockAt.getMonth()+lockMonths);
-    const vault = { id:`v_${Date.now()}`, tokenAddress, tokenSymbol, amount:String(amount), lockMonths, unlockAt:unlockAt.toISOString(), createdAt:new Date().toISOString(), note:note||'', status:'locked', walletId:activeWallet.id };
-    const u = [...vaults, vault]; setVaults(u); saveVaults(activeWallet.id, u);
-    toast.success(`🔒 Locked ${tokenSymbol} for ${lockMonths}mo!`); return vault;
+  // === ON-CHAIN VAULT WRITE FUNCTIONS ===
+
+  const createVault = async ({ tokenAddress, tokenSymbol, amount, lockMonths }) => {
+    if(!sessionPwd) throw new Error('Wallet is locked');
+    if(lockMonths < 1) throw new Error('Minimum 1 month');
+    if(amount <= 0) throw new Error('Invalid amount');
+
+    // Get Decimals
+    const t = tokens.find(tk => tk.address.toLowerCase() === tokenAddress.toLowerCase());
+    const decimals = t ? t.decimals : 18;
+    const lockDays = lockMonths * 30; // Contract uses days
+    
+    // Decrypt keys for signing
+    const pk = getKeys(sessionPwd).privateKey;
+
+    toast.loading("Locking on-chain (Approve + Lock)...", { id: 'vault_tx' });
+    try {
+      await lockTokensOnChain(pk, tokenAddress, amount, decimals, lockDays, network);
+      toast.success(`🔒 Locked ${tokenSymbol} securely on-chain!`, { id: 'vault_tx' });
+      refreshBalances(); // Syncs balances and fetches the new vault
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || "Transaction failed. Check gas.", { id: 'vault_tx' });
+      throw error;
+    }
   };
 
-  const unlockVault = (vaultId, fee=0) => {
-    const u = vaults.map(v=>v.id===vaultId?{...v,status:'unlocked',unlockedAt:new Date().toISOString(),earlyFee:fee}:v);
-    setVaults(u); saveVaults(activeWallet.id,u);
+  const unlockVault = async (vaultId, fee = 0) => {
+    if(!sessionPwd) throw new Error('Wallet is locked');
+    const pk = getKeys(sessionPwd).privateKey;
+    const isBreaking = fee > 0;
+
+    toast.loading(isBreaking ? "Breaking vault and paying penalty..." : "Withdrawing unlocked tokens...", { id: 'vault_tx' });
+    try {
+      if (isBreaking) {
+        await breakVaultOnChain(pk, vaultId, network);
+      } else {
+        await withdrawFromVaultOnChain(pk, vaultId, network);
+      }
+      toast.success(isBreaking ? "Vault broken! Penalty routed to Admin." : "Tokens withdrawn successfully!", { id: 'vault_tx' });
+      refreshBalances(); // Sync UI with blockchain
+    } catch (error) {
+      console.error(error);
+      toast.error("Transaction failed. Make sure you have BNB/ETH for gas.", { id: 'vault_tx' });
+      throw error;
+    }
   };
+
+  // =======================================
 
   const setNetwork = (n) => updateSettings({ network:n });
   const updateSettings = (patch) => { const u={...settings,...patch}; setSettings(u); saveSettings(u); };
@@ -129,9 +202,6 @@ export const WalletProvider = ({ children }) => {
 
   return (
     <Ctx.Provider value={{ wallets,activeWallet,tokens,vaults,settings,sessionPwd,isLocked,balances,prices,loadingBal,network,
-      createNew,importWallet,switchWallet,removeWallet,getKeys,addToken,removeToken,createVault,unlockVault,
-      updateSettings,setNetwork,lockWallet,unlockWallet,refreshBalances,refreshPrices }}>
-      {children}
-    </Ctx.Provider>
-  );
-};
+      createNew,importWallet,switchWallet,removeWallet,getKeys,addToken,removeToken,
+      createVault,unlockVault, // <--- These now execute real blockchain transactions!
+      updateSettings,setNetwork,lockWallet,unlockWallet,refresh
