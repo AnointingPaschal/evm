@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    @apply font-body text-white;
+    min-height: 100vh;
+    background: #010812;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% 0%, #0F1F3D88 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 100%, #162447aa 0%, transparent 60%);
+    background-attachment: fixed;
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: #020817; }
+  ::-webkit-scrollbar-thumb { background: #F59E0B33; border-radius: 9px; }
+  ::-webkit-scrollbar-thumb:hover { background: #F59E0B77; }
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0px 1000px #0A1628 inset;
+    -webkit-text-fill-color: #ffffff;
+    caret-color: #ffffff;
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(10, 22, 40, 0.65);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(245,158,11,0.1);
+  }
+  .glass-sm {
+    background: rgba(10, 22, 40, 0.45);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(245,158,11,0.08);
+  }
+  .glass-dark {
+    background: rgba(2, 8, 23, 0.85);
+    backdrop-filter: blur(28px);
+    border-right: 1px solid rgba(245,158,11,0.08);
+  }
+
+  .gold-gradient { background: linear-gradient(135deg,#FBBF24 0%,#F59E0B 45%,#D97706 100%); }
+  .gold-text {
+    background: linear-gradient(135deg,#FCD34D,#F59E0B,#D97706);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .shimmer-text {
+    background: linear-gradient(90deg,#F59E0B 0%,#FEF3C7 40%,#F59E0B 80%);
+    background-size: 200% auto;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    animation: shimmer 2.5s linear infinite;
+  }
+
+  .btn-primary {
+    @apply gold-gradient text-navy-900 font-semibold font-display rounded-xl px-5 py-2.5 text-sm
+      transition-all duration-200 hover:shadow-lg hover:shadow-gold-500/30 hover:brightness-110
+      active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply glass-sm rounded-xl px-5 py-2.5 text-sm font-medium text-gray-300 border border-gold-500/20
+      hover:border-gold-500/40 hover:text-gold-300 hover:bg-gold-500/10 transition-all duration-200 active:scale-95;
+  }
+  .btn-danger {
+    @apply bg-red-500/15 border border-red-500/30 text-red-400 rounded-xl px-5 py-2.5 text-sm font-medium
+      hover:bg-red-500/25 hover:border-red-400/60 transition-all duration-200 active:scale-95;
+  }
+  .btn-icon {
+    @apply w-10 h-10 rounded-xl glass-sm border border-gold-500/20 flex items-center justify-center
+      text-gray-400 hover:text-gold-400 hover:border-gold-500/40 transition-all duration-200 active:scale-90;
+  }
+
+  .input {
+    @apply w-full bg-navy-800/80 border border-gold-500/20 rounded-xl px-4 py-3 text-white text-sm
+      placeholder-gray-600 font-body focus:outline-none focus:border-gold-500/50 focus:bg-navy-700/80
+      transition-all duration-200;
+  }
+  .label { @apply block text-xs font-medium text-gray-400 mb-1.5; }
+
+  .card { @apply glass rounded-2xl border border-gold-500/10 p-5; }
+  .card-sm { @apply glass-sm rounded-xl border border-gold-500/10 p-4; }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-gray-500 text-sm font-medium
+      hover:text-gray-200 hover:bg-white/5 transition-all duration-150 cursor-pointer;
+  }
+  .nav-item-active { @apply text-gold-400 bg-gold-500/20 border border-gold-500/20; }
+
+  .badge { @apply text-[10px] font-mono font-medium px-1.5 py-0.5 rounded-full; }
+  .badge-gold { @apply badge bg-gold-500/20 text-gold-300 border border-gold-500/30; }
+  .badge-green { @apply badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/25; }
+  .badge-red { @apply badge bg-red-500/15 text-red-300 border border-red-500/25; }
+  .badge-blue { @apply badge bg-blue-500/15 text-blue-300 border border-blue-500/25; }
+  .badge-purple { @apply badge bg-purple-500/15 text-purple-300 border border-purple-500/25; }
+
+  .divider { @apply border-t border-gold-500/10 my-4; }
+  .positive { @apply text-emerald-400; }
+  .negative { @apply text-red-400; }
+
+  .stat-card {
+    @apply card-sm flex flex-col gap-1 hover:border-gold-500/20 transition-all duration-200;
+  }
+  .stat-label { @apply text-xs text-gray-500 font-mono; }
+  .stat-value { @apply text-base font-display font-semibold text-white; }
+}
