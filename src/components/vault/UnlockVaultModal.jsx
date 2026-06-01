@@ -9,43 +9,40 @@ export default function UnlockVaultModal({ vault, onClose, token }) {
   const { unlockVault, prices } = useWallet();
   const [confirmed, setConfirmed] = useState(false);
   const isEarly = new Date() < new Date(vault.unlockAt);
-  const fee = isEarly ? parseFloat(vault.amount) * 0.02 : 0;
+  const fee = isEarly ? parseFloat(vault.amount)*0.02 : 0;
   const sym = vault.tokenSymbol;
-  const price = prices[sym?.toUpperCase()]?.price || 0;
-  const netAmt = parseFloat(vault.amount) - fee;
+  const price = prices[sym?.toUpperCase()]?.price||0;
+  const net = parseFloat(vault.amount)-fee;
 
-  const handle = () => {
-    unlockVault(vault.id, fee);
-    onClose();
-  };
+  const handle = () => { unlockVault(vault.id, fee); onClose(); };
 
   return (
-    <Modal isOpen={true} onClose={onClose} title={isEarly ? '⚠️ Break Vault Early' : '🔓 Unlock Vault'} size="sm">
+    <Modal isOpen={true} onClose={onClose} title={isEarly?'Break Vault Early':'Unlock Vault'}>
       <div className="space-y-4">
         {isEarly && (
-          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-500/10 border border-red-500/25">
-            <AlertTriangle size={14} className="text-red-400 flex-shrink-0 mt-0.5"/>
-            <p className="text-xs text-red-300">Breaking early incurs a 2% penalty fee. Your vault unlocks on {format(new Date(vault.unlockAt),'MMM d, yyyy')}.</p>
+          <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30">
+            <AlertTriangle size={14} className="text-red-500 flex-shrink-0 mt-0.5"/>
+            <p className="text-red-700 dark:text-red-300 text-xs">Early unlock penalty: 2% fee. Vault unlocks on {format(new Date(vault.unlockAt),'MMM d, yyyy')}.</p>
           </div>
         )}
-        <div className="p-4 rounded-xl bg-navy-800/60 border border-gold-500/8 space-y-2.5 text-sm">
-          <div className="flex justify-between"><span className="text-gray-500">Locked Amount</span><span className="text-white font-mono">{vault.amount} {sym}</span></div>
-          {isEarly && <><div className="flex justify-between"><span className="text-gray-500">Early Break Fee (2%)</span><span className="text-red-400 font-mono">-{fee.toFixed(6)} {sym}</span></div>
-          <div className="border-t border-gold-500/8 pt-2 flex justify-between font-semibold"><span className="text-gray-400">You Receive</span><span className="text-white font-mono">{netAmt.toFixed(6)} {sym}</span></div></>}
-          {!isEarly && <div className="flex justify-between font-semibold"><span className="text-gray-400">You Receive</span><span className="text-emerald-400 font-mono">{vault.amount} {sym}</span></div>}
-          {price > 0 && <div className="flex justify-between text-xs"><span className="text-gray-600">USD Value</span><span className="text-gray-500">{fmtNum(netAmt * price)}</span></div>}
+        <div className="card-inner divide-y divide-slate-100 dark:divide-white/5">
+          {[{l:'Locked',v:`${vault.amount} ${sym}`},{l:'Fee',v:isEarly?`${fee.toFixed(6)} ${sym}`:'None'},{l:'You receive',v:`${net.toFixed(6)} ${sym}`},{l:'USD value',v:fmtNum(net*price)}].map(({l,v})=>(
+            <div key={l} className="flex justify-between py-3 px-4">
+              <span className="text-secondary text-sm">{l}</span>
+              <span className="text-primary text-sm font-semibold">{v}</span>
+            </div>
+          ))}
         </div>
         {isEarly && (
-          <label className="flex items-start gap-2.5 cursor-pointer">
-            <input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-0.5 accent-gold-500"/>
-            <span className="text-xs text-gray-400">I understand I will lose 2% as early unlock fee</span>
+          <label className="flex items-start gap-3 cursor-pointer p-3 rounded-2xl bg-slate-50 dark:bg-navy-900">
+            <input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-0.5 accent-brand-500 flex-shrink-0"/>
+            <span className="text-sm text-primary">I understand the 2% early fee will be deducted</span>
           </label>
         )}
-        <div className="flex gap-2">
-          <button onClick={onClose} className="btn-ghost flex-1">Cancel</button>
-          <button onClick={handle} disabled={isEarly && !confirmed}
-            className={isEarly ? 'btn-danger flex-1' : 'btn-primary flex-1 flex items-center justify-center gap-2'}>
-            {isEarly ? 'Break & Unlock' : <><Unlock size={13}/>Unlock</>}
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={onClose} className="btn-ghost">Cancel</button>
+          <button onClick={handle} disabled={isEarly&&!confirmed} className={isEarly?'btn-danger':'btn-primary flex items-center justify-center gap-2'}>
+            {isEarly?'Break & Unlock':<><Unlock size={14}/>Unlock</>}
           </button>
         </div>
       </div>

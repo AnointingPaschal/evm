@@ -1,49 +1,56 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { WalletProvider, useWallet } from './context/WalletContext';
-import Sidebar from './components/layout/Sidebar';
-import Onboarding from './pages/Onboarding';
-import Dashboard from './pages/Dashboard';
-import TokenDetail from './pages/TokenDetail';
+import { ThemeProvider } from './context/ThemeContext';
+import BottomNav from './components/layout/BottomNav';
+import Home from './pages/Home';
+import Send from './pages/Send';
+import Receive from './pages/Receive';
+import Swap from './pages/Swap';
 import History from './pages/History';
+import TokenDetail from './pages/TokenDetail';
 import Settings from './pages/Settings';
-import Admin from './pages/Admin';
+import Onboarding from './pages/Onboarding';
 import LockScreen from './pages/LockScreen';
+import Admin from './pages/Admin';
 
 function AppInner() {
   const { activeWallet, isLocked } = useWallet();
   if (!activeWallet) return <Onboarding />;
   if (isLocked) return <LockScreen />;
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/token/:tokenId" element={<TokenDetail />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </main>
+    <div className="min-h-screen bg-app flex flex-col max-w-lg mx-auto relative">
+      <Routes>
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/send" element={<Send />} />
+        <Route path="/receive" element={<Receive />} />
+        <Route path="/swap" element={<Swap />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/token/:tokenId" element={<TokenDetail />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="*" element={<Navigate to="/home" replace />} />
+      </Routes>
+      <BottomNav />
     </div>
   );
 }
 
 export default function App() {
   return (
-    <WalletProvider>
-      <Toaster position="top-right" toastOptions={{
-        style: { background:'#0A1628', color:'#fff', border:'1px solid rgba(245,158,11,0.2)', fontFamily:'DM Sans,sans-serif', fontSize:'13px' },
-        success: { iconTheme: { primary:'#F59E0B', secondary:'#0A1628' } },
-        error: { iconTheme: { primary:'#f87171', secondary:'#0A1628' } },
-      }} />
-      <Routes>
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/*" element={<AppInner />} />
-      </Routes>
-    </WalletProvider>
+    <ThemeProvider>
+      <WalletProvider>
+        <Toaster position="top-center" toastOptions={{
+          style: { background:'#1E293B', color:'#F8FAFC', borderRadius:'16px', fontSize:'13px', fontFamily:'Inter,sans-serif', border:'1px solid rgba(255,255,255,0.1)' },
+          success: { iconTheme:{ primary:'#3B82F6', secondary:'#fff' } },
+          error: { iconTheme:{ primary:'#EF4444', secondary:'#fff' } },
+        }} />
+        <Routes>
+          <Route path="/admin/*" element={<Admin />} />
+          <Route path="/*" element={<AppInner />} />
+        </Routes>
+      </WalletProvider>
+    </ThemeProvider>
   );
 }

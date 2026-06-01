@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Fingerprint } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LockScreen() {
@@ -11,34 +11,32 @@ export default function LockScreen() {
 
   const unlock = async () => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 300));
-    const ok = unlockWallet(pwd);
-    if (!ok) { toast.error('Wrong password'); }
+    await new Promise(r => setTimeout(r, 200));
+    if (!unlockWallet(pwd)) { toast.error('Wrong password'); setPwd(''); }
     setLoading(false);
-    setPwd('');
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-xs animate-slide-up text-center">
-        <div className="w-16 h-16 gold-gradient rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-xl shadow-gold-500/25 animate-glow-pulse">
-          <Lock size={28} className="text-navy-900" />
+    <div className="min-h-screen flex flex-col bg-app">
+      <div className="header-bg flex-1 flex flex-col items-center justify-center px-5 pt-16 pb-8">
+        <div className="w-20 h-20 rounded-3xl bg-white/10 border border-white/20 flex items-center justify-center mb-4 animate-bounce-in">
+          <Fingerprint size={38} className="text-white"/>
         </div>
-        <h2 className="font-display font-bold text-2xl gold-text mb-1">Wallet Locked</h2>
-        <p className="text-gray-600 text-sm mb-6">{activeWallet?.name}</p>
-        <div className="card">
-          <div className="relative mb-4">
-            <input className="input pr-10 text-center" type={show?'text':'password'}
-              placeholder="Enter password" value={pwd} onChange={e => setPwd(e.target.value)}
-              onKeyDown={e => e.key==='Enter' && unlock()} autoFocus />
-            <button onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300">
-              {show ? <EyeOff size={14}/> : <Eye size={14}/>}
-            </button>
-          </div>
-          <button onClick={unlock} disabled={loading || !pwd} className="btn-primary w-full py-3">
-            {loading ? 'Unlocking...' : 'Unlock'}
+        <h1 className="text-white font-bold text-2xl mb-1">Welcome Back</h1>
+        <p className="text-white/50 text-sm">{activeWallet?.name}</p>
+      </div>
+      <div className="bg-white dark:bg-navy-800 rounded-t-3xl px-5 pt-7 pb-10">
+        <div className="relative mb-4">
+          <input className="input text-center text-base pr-11" type={show?'text':'password'}
+            placeholder="Enter password" value={pwd} onChange={e=>setPwd(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&unlock()} autoFocus/>
+          <button onClick={()=>setShow(!show)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-secondary hover:text-primary">
+            {show?<EyeOff size={16}/>:<Eye size={16}/>}
           </button>
         </div>
+        <button onClick={unlock} disabled={loading||!pwd} className="btn-primary w-full py-4">
+          {loading?'Unlocking...':'Unlock Wallet'}
+        </button>
       </div>
     </div>
   );
