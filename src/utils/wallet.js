@@ -1,77 +1,116 @@
-import { ethers } from 'ethers';
-import CryptoJS from 'crypto-js';
+// === VAULT CONTRACT CONFIGURATION ===
+export const VAULT_CONTRACT_ADDRESSES = {
+  ethereum: "0xYourEthDeployedContractAddress", // Replace later when you deploy to ETH Mainnet
+  bsc: "0x16AfD62Cf894a1be65F631e9e953E180A70134ae" // 🟢 LIVE: Your deployed BSC Smart Contract!
+};
 
-export const NETWORKS = {
-  ethereum: {
-    id: 1, name: 'Ethereum', symbol: 'ETH',
-    rpc: 'https://ethereum-rpc.publicnode.com',
-    explorer: 'https://etherscan.io',
-    color: '#627EEA', decimals: 18, coingeckoId: 'ethereum', ccSymbol: 'ETH',
-  },
-  bsc: {
-    id: 56, name: 'BNB Chain', symbol: 'BNB',
-    rpc: 'https://bsc-rpc.publicnode.com',
-    explorer: 'https://bscscan.com',
-    color: '#F3BA2F', decimals: 18, coingeckoId: 'binancecoin', ccSymbol: 'BNB',
+export const VAULT_ABI = [
+  "function lockTokens(address _tokenAddress, uint256 _amount, uint256 _lockDays) external",
+  "function withdraw(uint256 _lockId) external",
+  "function breakVault(uint256 _lockId) external",
+  "function getUserLocks(address _user) external view returns (tuple(address tokenAddress, uint256 amount, uint256 unlockTimestamp, bool isWithdrawn)[])"
+];
+
+// Standard ERC20 snippet required for giving the vault permission to transfer tokens
+const MINIMAL_ERC20_ABI = [
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function allowance(address owner, address spender) external view returns (uint256)"
+];
+
+// === ON-CHAIN VAULT READ OPERATIONS ===
+
+/**
+ * Fetches all vaults for a specific user wallet address directly from the blockchain.
+ * Replaces local storage reads for active locks.
+ */
+export const getUserVaultsOnChain = async (wAddr, network = 'ethereum') => {
+  try {
+    const contractAddr = VAULT_CONTRACT_ADDRESSES[network];
+    if (!contractAddr || contractAddr.startsWith("0xYour")) return [];
+
+    // Make sure getProvider is defined higher up in your wallet.js
+    const contract = new ethers.Contract(contractAddr, VAULT_ABI, getProvider(network));
+    const rawLocks = await contract.getUserLocks(wAddr);
+
+    return rawLocks.map((lock, index) => {
+      const unlockMs = Number(lock.unlockTimestamp) * 1000;
+      let status = 'locked';
+      if (lock.isWithdrawn) {
+        status = 'withdrawn';
+      } else if (Date.now() >= unlockMs) {
+        status = 'unlocked';
+      }
+
+      return {
+        id: index, // Array index corresponds exactly to the contract lockId
+        tokenAddress: lock.tokenAddress,
+        amount: lock.amount.toString(), // Keep raw; parse inside context based on decimals
+        unlockTimestamp: unlockMs,
+        isWithdrawn: lock.isWithdrawn,
+        status: status
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching on-chain vaults:", error);
+    return [];
   }
 };
 
-const _providers = {};
-export const getProvider = (network = 'ethereum') => {
-  if (!_providers[network]) _providers[network] = new ethers.JsonRpcProvider(NETWORKS[network].rpc);
-  return _providers[network];
+// === ON-CHAIN VAULT WRITE OPERATIONS ===
+
+/**
+ * Locks tokens inside the smart contract wrapper. 
+ * This is a 2-step process: 1. ERC20 Approval -> 2. Contract Deposit
+ */
+export const lockTokensOnChain = async (pk, tokenAddr, amount, decimals, lockDays, network = 'ethereum') => {
+  // SAFETY CHECK: This smart contract expects ERC20/BEP20 tokens.
+  if (tokenAddr === 'native' || tokenAddr === ethers.ZeroAddress) {
+    throw new Error("This vault contract currently only supports BEP20/ERC20 tokens, not native BNB/ETH.");
+  }
+
+  const provider = getProvider(network);
+  const wallet = new ethers.Wallet(pk, provider);
+  const vaultAddr = VAULT_CONTRACT_ADDRESSES[network];
+  const amountInWei = ethers.parseUnits(String(amount), decimals);
+
+  // Step 1: ERC20 Token Approval
+  const tokenContract = new ethers.Contract(tokenAddr, MINIMAL_ERC20_ABI, wallet);
+  
+  // Check existing allowance to avoid unnecessary gas spending
+  const currentAllowance = await tokenContract.allowance(wallet.address, vaultAddr);
+  if (currentAllowance < amountInWei) {
+    const approveTx = await tokenContract.approve(vaultAddr, amountInWei);
+    await approveTx.wait(); // Wait for approval confirmation block
+  }
+
+  // Step 2: Interact with Vault Contract
+  const vaultContract = new ethers.Contract(vaultAddr, VAULT_ABI, wallet);
+  const lockTx = await vaultContract.lockTokens(tokenAddr, amountInWei, lockDays);
+  return await lockTx.wait();
 };
 
-export const createWallet = () => {
-  const w = ethers.Wallet.createRandom();
-  return { address: w.address, mnemonic: w.mnemonic.phrase, privateKey: w.privateKey };
-};
-export const importFromMnemonic = (m) => {
-  try { const w = ethers.Wallet.fromPhrase(m.trim()); return { address: w.address, mnemonic: w.mnemonic.phrase, privateKey: w.privateKey }; }
-  catch { throw new Error('Invalid mnemonic phrase'); }
-};
-export const importFromPrivateKey = (pk) => {
-  try { const w = new ethers.Wallet(pk.trim()); return { address: w.address, mnemonic: null, privateKey: w.privateKey }; }
-  catch { throw new Error('Invalid private key'); }
-};
-export const encryptData = (data, pwd) => CryptoJS.AES.encrypt(JSON.stringify(data), pwd).toString();
-export const decryptData = (enc, pwd) => {
-  try { const s = CryptoJS.AES.decrypt(enc, pwd).toString(CryptoJS.enc.Utf8); if (!s) throw 0; return JSON.parse(s); }
-  catch { throw new Error('Invalid password'); }
-};
-export const hashPassword = (pwd) => CryptoJS.SHA256(pwd).toString();
+/**
+ * Normal claim routine when the lock duration has officially expired.
+ */
+export const withdrawFromVaultOnChain = async (pk, lockId, network = 'ethereum') => {
+  const provider = getProvider(network);
+  const wallet = new ethers.Wallet(pk, provider);
+  const vaultAddr = VAULT_CONTRACT_ADDRESSES[network];
 
-export const getNativeBalance = async (address, network = 'ethereum') => {
-  try { return ethers.formatEther(await getProvider(network).getBalance(address)); } catch { return '0'; }
+  const vaultContract = new ethers.Contract(vaultAddr, VAULT_ABI, wallet);
+  const tx = await vaultContract.withdraw(lockId);
+  return await tx.wait();
 };
-export const getTokenBalance = async (tAddr, wAddr, network = 'ethereum') => {
-  try {
-    const abi = ['function balanceOf(address) view returns (uint256)','function decimals() view returns (uint8)'];
-    const c = new ethers.Contract(tAddr, abi, getProvider(network));
-    const [bal, dec] = await Promise.all([c.balanceOf(wAddr), c.decimals()]);
-    return ethers.formatUnits(bal, dec);
-  } catch { return '0'; }
-};
-export const getTokenInfo = async (tAddr, network = 'ethereum') => {
-  const abi = ['function name() view returns (string)','function symbol() view returns (string)','function decimals() view returns (uint8)'];
-  const c = new ethers.Contract(tAddr, abi, getProvider(network));
-  const [name, symbol, decimals] = await Promise.all([c.name(), c.symbol(), c.decimals()]);
-  return { name, symbol, decimals: Number(decimals), address: tAddr, network };
-};
-export const sendNative = async (pk, to, amount, network = 'ethereum') => {
-  const w = new ethers.Wallet(pk, getProvider(network));
-  return w.sendTransaction({ to, value: ethers.parseEther(String(amount)) });
-};
-export const sendToken = async (pk, tAddr, to, amount, decimals, network = 'ethereum') => {
-  const w = new ethers.Wallet(pk, getProvider(network));
-  const c = new ethers.Contract(tAddr, ['function transfer(address,uint256) returns (bool)'], w);
-  return c.transfer(to, ethers.parseUnits(String(amount), decimals));
-};
-export const isValidAddress = (a) => { try { return ethers.isAddress(a); } catch { return false; } };
-export const shortAddr = (a, n = 6) => a ? `${a.slice(0,n)}...${a.slice(-4)}` : '';
-export const formatBal = (b, d = 6) => {
-  const n = parseFloat(b);
-  if (isNaN(n) || n === 0) return '0.000000';
-  if (n < 0.000001) return '< 0.000001';
-  return n.toFixed(d);
+
+/**
+ * Emergency break routine when breaking the vault early for your Admin penalty fee.
+ */
+export const breakVaultOnChain = async (pk, lockId, network = 'ethereum') => {
+  const provider = getProvider(network);
+  const wallet = new ethers.Wallet(pk, provider);
+  const vaultAddr = VAULT_CONTRACT_ADDRESSES[network];
+
+  const vaultContract = new ethers.Contract(vaultAddr, VAULT_ABI, wallet);
+  const tx = await vaultContract.breakVault(lockId);
+  return await tx.wait();
 };
