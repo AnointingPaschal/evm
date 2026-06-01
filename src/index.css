@@ -6,7 +6,14 @@
 
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { height: 100%; -webkit-tap-highlight-color: transparent; }
+  
+  html { 
+    height: 100%; 
+    -webkit-tap-highlight-color: transparent; 
+    /* 👇 THIS IS THE MAGIC LINE. 
+       Change to 11px to make it even smaller, or 13px if 12px is too hard to read. */
+    font-size: 12px; 
+  }
   
   body {
     @apply bg-surface-light text-slate-900 font-sans;
@@ -163,4 +170,21 @@
 
   /* Divider */
   .divider { @apply border-t border-slate-100 dark:border-white/5; }
+  
+  /* Safe area padding for actual mobile devices */
+  .pt-safe {
+    padding-top: max(3.5rem, env(safe-area-inset-top));
+  }
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  /* Smooth slide animations for dropdowns */
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .animate-slide-down {
+    animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
 }
